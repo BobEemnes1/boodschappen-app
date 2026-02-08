@@ -12,11 +12,11 @@
     <meta name="description" content="Gedeelde boodschappenlijst met Dropbox sync" />
 
     <!-- Icons -->
-    <link rel="icon" type="image/svg+xml" href="/boodschappen-app/icon.svg" />
-    <link rel="apple-touch-icon" href="/boodschappen-app/icon.svg" />
+    <link rel="icon" type="image/svg+xml" href="/icon.svg" />
+    <link rel="apple-touch-icon" href="/icon.svg" />
 
     <!-- Manifest -->
-    <link rel="manifest" href="/boodschappen-app/manifest.json" />
+    <link rel="manifest" href="/manifest.json" />
 
     <!-- Font -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -32,9 +32,7 @@
       // Register Service Worker
       if ('serviceWorker' in navigator) {
         window.addEventListener('load', function() {
-          navigator.serviceWorker.register('/boodschappen-app/sw.js', {
-            scope: '/boodschappen-app/'
-          }).catch(function() {});
+          navigator.serviceWorker.register('/sw.js').catch(function() {});
         });
       }
     </script>

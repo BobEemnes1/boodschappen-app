@@ -1,9 +1,9 @@
-const CACHE_NAME = 'boodschappen-v2';
-const BASE_PATH = '/boodschappen-app/';
+const CACHE_NAME = 'boodschappen-v3';
+const BASE_PATH = '/';
 const STATIC_ASSETS = [
-  BASE_PATH,
-  BASE_PATH + 'index.html',
-  BASE_PATH + 'manifest.json',
+  '/',
+  '/index.html',
+  '/manifest.json',
 ];
 
 // Install: cache app shell
