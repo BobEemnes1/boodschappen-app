@@ -4,14 +4,10 @@
     <meta charset="utf-8">
     <title>Boodschappen App</title>
     <script>
-      // GitHub Pages SPA redirect
-      // Redirect 404s to index.html with the path as a query param
-      const path = window.location.pathname;
-      const repo = '/boodschappen-app';
-      if (path.startsWith(repo)) {
-        const route = path.slice(repo.length) || '/';
-        window.location.replace(repo + '/?route=' + encodeURIComponent(route));
-      }
+      // GitHub Pages SPA redirect - preserve query params for OAuth
+      var search = window.location.search;
+      var hash = window.location.hash;
+      window.location.replace('/boodschappen-app/' + search + hash);
     </script>
   </head>
   <body>

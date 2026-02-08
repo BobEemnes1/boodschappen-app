@@ -3,11 +3,13 @@ import { Dropbox } from 'dropbox';
 const CLIENT_ID = ''; // User must set their own Dropbox App Key
 
 // Redirect URI moet EXACT overeenkomen met wat in Dropbox App Console staat
-// Voor dev: http://localhost:5173 (zonder trailing slash!)
-// Voor prod: https://jouwdomein.com (zonder trailing slash!)
+// Voor GitHub Pages: https://username.github.io/boodschappen-app/
 function getRedirectUri() {
-  // Gebruik origin alleen (zonder pathname) voor cleaner URLs
-  return window.location.origin;
+  // Origin + base path (zonder trailing slash voor Dropbox)
+  const base = import.meta.env.BASE_URL || '/';
+  const origin = window.location.origin;
+  // Verwijder trailing slash
+  return (origin + base).replace(/\/$/, '');
 }
 
 export function getRedirectUri_ForDisplay() {
@@ -115,8 +117,9 @@ export async function handleAuthRedirect() {
     setStoredToken(data.access_token);
     localStorage.removeItem(VERIFIER_KEY);
 
-    // Clean URL
-    window.history.replaceState({}, document.title, getRedirectUri());
+    // Clean URL - gebruik base path
+    const basePath = import.meta.env.BASE_URL || '/';
+    window.history.replaceState({}, document.title, basePath);
 
     return data.access_token;
   } catch (err) {

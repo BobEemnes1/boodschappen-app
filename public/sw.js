@@ -1,9 +1,9 @@
-const CACHE_NAME = 'boodschappen-v1';
-// Assets relatief aan de SW scope
+const CACHE_NAME = 'boodschappen-v2';
+const BASE_PATH = '/boodschappen-app/';
 const STATIC_ASSETS = [
-  './',
-  './index.html',
-  './manifest.json',
+  BASE_PATH,
+  BASE_PATH + 'index.html',
+  BASE_PATH + 'manifest.json',
 ];
 
 // Install: cache app shell
@@ -56,7 +56,7 @@ self.addEventListener('fetch', (event) => {
         })
         .catch(() => {
           return caches.match(request).then((cached) => {
-            return cached || caches.match('./');
+            return cached || caches.match(BASE_PATH);
           });
         })
     );
