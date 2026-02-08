@@ -12,11 +12,11 @@
     <meta name="description" content="Gedeelde boodschappenlijst met Dropbox sync" />
 
     <!-- Icons -->
-    <link rel="icon" type="image/svg+xml" href="/icon.svg" />
-    <link rel="apple-touch-icon" href="/icon.svg" />
+    <link rel="icon" type="image/svg+xml" href="./icon.svg" />
+    <link rel="apple-touch-icon" href="./icon.svg" />
 
     <!-- Manifest -->
-    <link rel="manifest" href="/manifest.json" />
+    <link rel="manifest" href="./manifest.json" />
 
     <!-- Font -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -29,10 +29,11 @@
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
     <script>
-      // Register Service Worker
+      // Register Service Worker with correct scope for GitHub Pages
       if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
-          navigator.serviceWorker.register('/sw.js').catch(() => {});
+          const swPath = new URL('./sw.js', import.meta.url).href;
+          navigator.serviceWorker.register(swPath, { scope: './' }).catch(() => {});
         });
       }
     </script>
