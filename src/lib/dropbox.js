@@ -9,7 +9,7 @@ function getRedirectUri() {
   const base = import.meta.env.BASE_URL || '/';
   const origin = window.location.origin;
   // Verwijder trailing slash
-  return (origin + base).replace(/\/$/, '');
+  return origin + base;
 }
 
 export function getRedirectUri_ForDisplay() {
