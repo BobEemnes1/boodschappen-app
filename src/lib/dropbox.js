@@ -3,18 +3,17 @@ import { Dropbox } from 'dropbox';
 const CLIENT_ID = ''; // User must set their own Dropbox App Key
 
 // Redirect URI moet EXACT overeenkomen met wat in Dropbox App Console staat
-// Voor GitHub Pages: https://username.github.io/boodschappen-app/
 function getRedirectUri() {
-  // Origin + base path (zonder trailing slash voor Dropbox)
-  const base = import.meta.env.BASE_URL || '/';
+  // Voor app.bobcount.nl is window.location.origin "https://app.bobcount.nl"
+  // De trailing slash "/" is cruciaal voor de match met Dropbox
   const origin = window.location.origin;
-  // Verwijder trailing slash
-  return origin + base;
+  return origin + '/'; 
 }
 
 export function getRedirectUri_ForDisplay() {
   return getRedirectUri();
 }
+
 const FILE_PATH = '/lijst.json';
 const TOKEN_KEY = 'dbx_access_token';
 const VERIFIER_KEY = 'dbx_code_verifier';
