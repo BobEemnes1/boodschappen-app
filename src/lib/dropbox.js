@@ -4,10 +4,8 @@ const CLIENT_ID = ''; // User must set their own Dropbox App Key
 
 // Redirect URI moet EXACT overeenkomen met wat in Dropbox App Console staat
 function getRedirectUri() {
-  // Voor app.bobcount.nl is window.location.origin "https://app.bobcount.nl"
-  // De trailing slash "/" is cruciaal voor de match met Dropbox
   const origin = window.location.origin;
-  return origin + '/'; 
+  return origin + '/';
 }
 
 export function getRedirectUri_ForDisplay() {
@@ -15,7 +13,9 @@ export function getRedirectUri_ForDisplay() {
 }
 
 const FILE_PATH = '/lijst.json';
-const TOKEN_KEY = 'dbx_access_token';
+const ACCESS_TOKEN_KEY = 'dbx_access_token';
+const REFRESH_TOKEN_KEY = 'dbx_refresh_token';
+const TOKEN_EXPIRY_KEY = 'dbx_token_expiry';
 const VERIFIER_KEY = 'dbx_code_verifier';
 const CLIENT_ID_KEY = 'dbx_client_id';
 
@@ -42,16 +42,44 @@ async function generateCodeChallenge(verifier) {
     .replace(/=+$/, '');
 }
 
+// Token opslag
+function getStoredAccessToken() {
+  return localStorage.getItem(ACCESS_TOKEN_KEY);
+}
+
+function getStoredRefreshToken() {
+  return localStorage.getItem(REFRESH_TOKEN_KEY);
+}
+
+function getTokenExpiry() {
+  const expiry = localStorage.getItem(TOKEN_EXPIRY_KEY);
+  return expiry ? parseInt(expiry, 10) : 0;
+}
+
+function storeTokens(accessToken, refreshToken, expiresIn) {
+  localStorage.setItem(ACCESS_TOKEN_KEY, accessToken);
+  if (refreshToken) {
+    localStorage.setItem(REFRESH_TOKEN_KEY, refreshToken);
+  }
+  // Sla expiry op met 5 minuten marge
+  const expiryTime = Date.now() + (expiresIn - 300) * 1000;
+  localStorage.setItem(TOKEN_EXPIRY_KEY, expiryTime.toString());
+}
+
 export function getStoredToken() {
-  return localStorage.getItem(TOKEN_KEY);
+  // Backwards compatible - check of er een token is
+  return getStoredAccessToken() || getStoredRefreshToken();
 }
 
 export function setStoredToken(token) {
-  localStorage.setItem(TOKEN_KEY, token);
+  // Backwards compatible voor shared tokens
+  localStorage.setItem(ACCESS_TOKEN_KEY, token);
 }
 
 export function clearStoredToken() {
-  localStorage.removeItem(TOKEN_KEY);
+  localStorage.removeItem(ACCESS_TOKEN_KEY);
+  localStorage.removeItem(REFRESH_TOKEN_KEY);
+  localStorage.removeItem(TOKEN_EXPIRY_KEY);
   localStorage.removeItem(VERIFIER_KEY);
 }
 
@@ -61,6 +89,64 @@ export function setClientId(id) {
 
 export function getStoredClientId() {
   return localStorage.getItem(CLIENT_ID_KEY) || '';
+}
+
+// Refresh het access token met de refresh token
+async function refreshAccessToken() {
+  const refreshToken = getStoredRefreshToken();
+  const clientId = getClientId();
+
+  if (!refreshToken || !clientId) {
+    throw new Error('Geen refresh token beschikbaar');
+  }
+
+  const response = await fetch('https://api.dropboxapi.com/oauth2/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      grant_type: 'refresh_token',
+      refresh_token: refreshToken,
+      client_id: clientId,
+    }),
+  });
+
+  if (!response.ok) {
+    // Refresh token is ook ongeldig - volledig uitloggen
+    clearStoredToken();
+    const error = new Error('Sessie verlopen');
+    error.code = 'TOKEN_EXPIRED';
+    throw error;
+  }
+
+  const data = await response.json();
+  // Refresh token blijft hetzelfde, alleen access token wordt vernieuwd
+  storeTokens(data.access_token, null, data.expires_in);
+  return data.access_token;
+}
+
+// Haal een geldig access token op (vernieuwt automatisch indien nodig)
+async function getValidAccessToken() {
+  const accessToken = getStoredAccessToken();
+  const expiry = getTokenExpiry();
+
+  // Check of token nog geldig is
+  if (accessToken && Date.now() < expiry) {
+    return accessToken;
+  }
+
+  // Token verlopen of bijna verlopen - probeer te vernieuwen
+  const refreshToken = getStoredRefreshToken();
+  if (refreshToken) {
+    return await refreshAccessToken();
+  }
+
+  // Geen refresh token - gebruiker moet opnieuw inloggen
+  if (accessToken) {
+    // Er is wel een access token maar geen refresh token (oude sessie of shared token)
+    return accessToken;
+  }
+
+  throw new Error('Niet ingelogd');
 }
 
 export async function startAuth() {
@@ -79,7 +165,7 @@ export async function startAuth() {
     code_challenge: challenge,
     code_challenge_method: 'S256',
     redirect_uri: getRedirectUri(),
-    token_access_type: 'offline',
+    token_access_type: 'offline', // Dit geeft ons een refresh_token!
   });
 
   window.location.href = `https://www.dropbox.com/oauth2/authorize?${params}`;
@@ -113,10 +199,12 @@ export async function handleAuthRedirect() {
     }
 
     const data = await response.json();
-    setStoredToken(data.access_token);
+
+    // Sla zowel access_token als refresh_token op
+    storeTokens(data.access_token, data.refresh_token, data.expires_in || 14400);
     localStorage.removeItem(VERIFIER_KEY);
 
-    // Clean URL - gebruik base path
+    // Clean URL
     const basePath = import.meta.env.BASE_URL || '/';
     window.history.replaceState({}, document.title, basePath);
 
@@ -143,7 +231,7 @@ export function handleSharedToken() {
 }
 
 export function generateShareUrl() {
-  const token = getStoredToken();
+  const token = getStoredAccessToken();
   if (!token) return null;
   return `${window.location.origin}${window.location.pathname}#shared_token=${token}`;
 }
@@ -152,29 +240,77 @@ function getDbx(token) {
   return new Dropbox({ accessToken: token });
 }
 
-export async function loadList(token) {
+export async function loadList() {
+  const token = await getValidAccessToken();
   const dbx = getDbx(token);
+
   try {
     const response = await dbx.filesDownload({ path: FILE_PATH });
     const blob = response.result.fileBlob;
     const text = await blob.text();
     return JSON.parse(text);
   } catch (err) {
+    // Bestand bestaat nog niet - dat is OK
     if (err?.error?.error?.['.tag'] === 'path' &&
         err.error.error.path?.['.tag'] === 'not_found') {
       return { items: [], lastModified: new Date().toISOString() };
+    }
+    // Token ongeldig - probeer te vernieuwen
+    if (err?.status === 401 ||
+        err?.error?.['.tag'] === 'invalid_access_token' ||
+        err?.error?.error?.['.tag'] === 'expired_access_token') {
+      // Probeer token te vernieuwen en opnieuw
+      try {
+        const newToken = await refreshAccessToken();
+        const dbx2 = getDbx(newToken);
+        const response = await dbx2.filesDownload({ path: FILE_PATH });
+        const blob = response.result.fileBlob;
+        const text = await blob.text();
+        return JSON.parse(text);
+      } catch {
+        const error = new Error('Token verlopen');
+        error.code = 'TOKEN_EXPIRED';
+        throw error;
+      }
     }
     throw err;
   }
 }
 
-export async function saveList(token, data) {
+export async function saveList(data) {
+  const token = await getValidAccessToken();
   const dbx = getDbx(token);
   const contents = JSON.stringify(data, null, 2);
-  await dbx.filesUpload({
-    path: FILE_PATH,
-    contents,
-    mode: { '.tag': 'overwrite' },
-    mute: true,
-  });
+
+  try {
+    await dbx.filesUpload({
+      path: FILE_PATH,
+      contents,
+      mode: { '.tag': 'overwrite' },
+      mute: true,
+    });
+  } catch (err) {
+    // Token ongeldig - probeer te vernieuwen
+    if (err?.status === 401 ||
+        err?.error?.['.tag'] === 'invalid_access_token' ||
+        err?.error?.error?.['.tag'] === 'expired_access_token') {
+      // Probeer token te vernieuwen en opnieuw
+      try {
+        const newToken = await refreshAccessToken();
+        const dbx2 = getDbx(newToken);
+        await dbx2.filesUpload({
+          path: FILE_PATH,
+          contents,
+          mode: { '.tag': 'overwrite' },
+          mute: true,
+        });
+        return;
+      } catch {
+        const error = new Error('Token verlopen');
+        error.code = 'TOKEN_EXPIRED';
+        throw error;
+      }
+    }
+    throw err;
+  }
 }

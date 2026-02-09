@@ -1,10 +1,10 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { loadList, saveList, getStoredToken } from '../lib/dropbox';
+import { loadList, saveList, getStoredToken, clearStoredToken } from '../lib/dropbox';
 import { mergeItems } from '../lib/merge';
 
 const POLL_INTERVAL = 30000; // 30 seconds
 
-export function useDropboxSync() {
+export function useDropboxSync(onTokenExpired) {
   const [items, setItems] = useState([]);
   const [isSyncing, setIsSyncing] = useState(false);
   const [lastSync, setLastSync] = useState(null);
@@ -17,41 +17,59 @@ export function useDropboxSync() {
     itemsRef.current = items;
   }, [items]);
 
-  const token = getStoredToken();
+  const isConnected = !!getStoredToken();
+
+  const handleError = useCallback((err, context) => {
+    console.error(`${context}:`, err);
+
+    // Token verlopen - log uit
+    if (err.code === 'TOKEN_EXPIRED') {
+      clearStoredToken();
+      setSyncError('Sessie verlopen. Log opnieuw in met Dropbox.');
+      if (onTokenExpired) onTokenExpired();
+      return;
+    }
+
+    // Netwerk fout
+    if (!navigator.onLine) {
+      setSyncError('Geen internetverbinding');
+      return;
+    }
+
+    setSyncError(`${context} - probeer opnieuw`);
+  }, [onTokenExpired]);
 
   const syncFromCloud = useCallback(async () => {
-    if (!token) return;
+    if (!isConnected) return;
     setIsSyncing(true);
     setSyncError(null);
 
     try {
-      const cloudData = await loadList(token);
+      const cloudData = await loadList();
       const cloudItems = cloudData.items || [];
       const merged = mergeItems(itemsRef.current, cloudItems);
       setItems(merged);
       setLastSync(new Date());
     } catch (err) {
-      console.error('Sync fout:', err);
-      setSyncError('Synchronisatie mislukt');
+      handleError(err, 'Synchronisatie mislukt');
     } finally {
       setIsSyncing(false);
     }
-  }, [token]);
+  }, [isConnected, handleError]);
 
   const syncToCloud = useCallback(async (newItems) => {
-    if (!token) return;
+    if (!isConnected) return;
     try {
-      await saveList(token, {
+      await saveList({
         items: newItems,
         lastModified: new Date().toISOString(),
       });
       setLastSync(new Date());
       setSyncError(null);
     } catch (err) {
-      console.error('Opslaan mislukt:', err);
-      setSyncError('Opslaan mislukt');
+      handleError(err, 'Opslaan mislukt');
     }
-  }, [token]);
+  }, [isConnected, handleError]);
 
   const updateItems = useCallback((updater) => {
     setItems((prev) => {
@@ -64,14 +82,14 @@ export function useDropboxSync() {
 
   // Initial load
   useEffect(() => {
-    if (token) {
+    if (isConnected) {
       syncFromCloud();
     }
-  }, [token, syncFromCloud]);
+  }, [isConnected, syncFromCloud]);
 
   // Polling
   useEffect(() => {
-    if (!token) return;
+    if (!isConnected) return;
 
     pollRef.current = setInterval(() => {
       syncFromCloud();
@@ -82,7 +100,7 @@ export function useDropboxSync() {
         clearInterval(pollRef.current);
       }
     };
-  }, [token, syncFromCloud]);
+  }, [isConnected, syncFromCloud]);
 
   return {
     items,

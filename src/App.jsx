@@ -21,8 +21,12 @@ function App() {
   const [showShare, setShowShare] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
+  const handleTokenExpired = useCallback(() => {
+    setIsConnected(false);
+  }, []);
+
   const { items, setItems, isSyncing, lastSync, syncError, syncNow } =
-    useDropboxSync();
+    useDropboxSync(handleTokenExpired);
 
   // Handle OAuth redirect and shared tokens on mount
   useEffect(() => {
