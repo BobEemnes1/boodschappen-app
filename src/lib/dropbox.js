@@ -223,6 +223,21 @@ export function handleSharedToken() {
     const token = params.get('shared_token');
     if (token) {
       setStoredToken(token);
+      // Sla ook refresh token en client id op zodat gedeelde gebruikers
+      // hun sessie kunnen vernieuwen
+      const refreshToken = params.get('shared_refresh');
+      const clientId = params.get('shared_client');
+      if (refreshToken) {
+        localStorage.setItem(REFRESH_TOKEN_KEY, refreshToken);
+      }
+      if (clientId) {
+        localStorage.setItem(CLIENT_ID_KEY, clientId);
+      }
+      // Stel een standaard expiry in als we refresh info hebben
+      if (refreshToken && clientId) {
+        const expiryTime = Date.now() + (14400 - 300) * 1000;
+        localStorage.setItem(TOKEN_EXPIRY_KEY, expiryTime.toString());
+      }
       window.history.replaceState({}, document.title, window.location.pathname);
       return token;
     }
@@ -233,7 +248,16 @@ export function handleSharedToken() {
 export function generateShareUrl() {
   const token = getStoredAccessToken();
   if (!token) return null;
-  return `${window.location.origin}${window.location.pathname}#shared_token=${token}`;
+  const refreshToken = getStoredRefreshToken();
+  const clientId = getClientId();
+  const params = new URLSearchParams({ shared_token: token });
+  if (refreshToken) {
+    params.set('shared_refresh', refreshToken);
+  }
+  if (clientId) {
+    params.set('shared_client', clientId);
+  }
+  return `${window.location.origin}${window.location.pathname}#${params.toString()}`;
 }
 
 function getDbx(token) {
