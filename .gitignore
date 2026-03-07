@@ -12,6 +12,14 @@ dist
 dist-ssr
 *.local
 
+# Secrets
+.env
+.env.*
+Key.txt
+
+# Claude
+src/.claude/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

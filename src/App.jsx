@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { Header } from './components/Header';
 import { ConnectScreen } from './components/ConnectScreen';
 import { AddItemBar } from './components/AddItemBar';
@@ -6,85 +6,53 @@ import { ShoppingList } from './components/ShoppingList';
 import { ShareModal } from './components/ShareModal';
 import { SyncStatus } from './components/SyncStatus';
 import { SponsorBar } from './components/SponsorBar';
-import { useDropboxSync } from './hooks/useDropboxSync';
-import {
-  getStoredToken,
-  handleAuthRedirect,
-  handleSharedToken,
-  clearStoredToken,
-} from './lib/dropbox';
-import { createItem } from './lib/merge';
+import { supabase } from './lib/supabase';
+import { signOut, createProfile } from './lib/auth';
+import { clearHouseholdCache } from './lib/groceries';
+import { useSupabaseSync } from './hooks/useSupabaseSync';
 import './App.css';
 
 function App() {
-  const [isConnected, setIsConnected] = useState(!!getStoredToken());
+  const [session, setSession] = useState(undefined); // undefined = nog aan het laden
   const [showShare, setShowShare] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
 
-  const handleTokenExpired = useCallback(() => {
-    setIsConnected(false);
-  }, []);
-
-  const { items, setItems, isSyncing, lastSync, syncError, syncNow } =
-    useDropboxSync(handleTokenExpired);
-
-  // Handle OAuth redirect and shared tokens on mount
   useEffect(() => {
-    async function init() {
-      // Check for shared token first
-      const sharedToken = handleSharedToken();
-      if (sharedToken) {
-        setIsConnected(true);
-        setIsLoading(false);
-        return;
-      }
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+    });
 
-      // Check for OAuth redirect
-      const token = await handleAuthRedirect();
-      if (token) {
-        setIsConnected(true);
-      } else {
-        setIsConnected(!!getStoredToken());
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(async (event, session) => {
+      setSession(session);
+      // Na e-mailbevestiging: profiel alsnog aanmaken
+      if (event === 'SIGNED_IN') {
+        const pending = localStorage.getItem('pending_profile');
+        if (pending) {
+          localStorage.removeItem('pending_profile');
+          try {
+            const { householdName, joinCode } = JSON.parse(pending);
+            await createProfile(householdName, joinCode);
+          } catch {
+            // Profiel bestaat al of er is een andere fout — doorgaan
+          }
+        }
       }
-      setIsLoading(false);
-    }
-    init();
+    });
+
+    return () => subscription.unsubscribe();
   }, []);
 
-  const handleAddItem = useCallback(
-    (text) => {
-      const item = createItem(text);
-      setItems((prev) => [item, ...prev]);
-    },
-    [setItems]
-  );
+  const { items, isSyncing, syncError, lastSync, householdId, handleAdd, handleToggle, handleDelete, syncNow } =
+    useSupabaseSync(!!session);
 
-  const handleToggle = useCallback(
-    (id) => {
-      setItems((prev) =>
-        prev.map((item) =>
-          item.id === id
-            ? { ...item, checked: !item.checked, updatedAt: new Date().toISOString() }
-            : item
-        )
-      );
-    },
-    [setItems]
-  );
+  const handleDisconnect = async () => {
+    clearHouseholdCache();
+    await signOut();
+  };
 
-  const handleDelete = useCallback(
-    (id) => {
-      setItems((prev) => prev.filter((item) => item.id !== id));
-    },
-    [setItems]
-  );
-
-  const handleDisconnect = useCallback(() => {
-    clearStoredToken();
-    setIsConnected(false);
-  }, []);
-
-  if (isLoading) {
+  // Sessie laden
+  if (session === undefined) {
     return (
       <div className="flex-1 flex items-center justify-center">
         <div className="w-8 h-8 border-3 border-primary border-t-transparent rounded-full animate-spin" />
@@ -92,14 +60,14 @@ function App() {
     );
   }
 
-  if (!isConnected) {
+  if (!session) {
     return <ConnectScreen />;
   }
 
   return (
     <div className="flex flex-col min-h-dvh">
       <Header
-        isConnected={isConnected}
+        isConnected={!!session}
         isSyncing={isSyncing}
         lastSync={lastSync}
         onSync={syncNow}
@@ -107,7 +75,7 @@ function App() {
         onShare={() => setShowShare(true)}
       />
 
-      <AddItemBar onAdd={handleAddItem} />
+      <AddItemBar onAdd={handleAdd} />
 
       <SyncStatus syncError={syncError} lastSync={lastSync} />
 
@@ -123,7 +91,9 @@ function App() {
 
       <SponsorBar />
 
-      {showShare && <ShareModal onClose={() => setShowShare(false)} />}
+      {showShare && (
+        <ShareModal householdId={householdId} onClose={() => setShowShare(false)} />
+      )}
     </div>
   );
 }

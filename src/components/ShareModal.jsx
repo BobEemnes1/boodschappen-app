@@ -1,10 +1,12 @@
 import { useState } from 'react';
 import { X, Copy, Check, Link } from 'lucide-react';
-import { generateShareUrl } from '../lib/dropbox';
 
-export function ShareModal({ onClose }) {
+export function ShareModal({ onClose, householdId }) {
   const [copied, setCopied] = useState(false);
-  const shareUrl = generateShareUrl();
+
+  const shareUrl = householdId
+    ? `${window.location.origin}${window.location.pathname}?join=${householdId}`
+    : null;
 
   const handleCopy = async () => {
     if (!shareUrl) return;
@@ -13,7 +15,6 @@ export function ShareModal({ onClose }) {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch {
-      // Fallback
       const input = document.createElement('input');
       input.value = shareUrl;
       document.body.appendChild(input);
@@ -43,19 +44,21 @@ export function ShareModal({ onClose }) {
         </div>
 
         <p className="text-sm text-text-muted mb-4">
-          Deel deze link met je huisgenoten zodat zij ook items kunnen toevoegen en afvinken.
+          Stuur deze link naar je huisgenoten. Zij kunnen hiermee een account aanmaken
+          en worden automatisch aan jouw huishouden gekoppeld.
         </p>
 
         <div className="bg-bg border border-border rounded-xl p-3 mb-4">
           <p className="text-xs text-text-muted break-all font-mono">
-            {shareUrl || 'Niet beschikbaar'}
+            {shareUrl || 'Laden...'}
           </p>
         </div>
 
         <div className="flex gap-2">
           <button
             onClick={handleCopy}
-            className="flex-1 flex items-center justify-center gap-2 bg-primary text-white py-2.5 rounded-xl font-medium hover:bg-primary-dark transition-colors"
+            disabled={!shareUrl}
+            className="flex-1 flex items-center justify-center gap-2 bg-primary text-white py-2.5 rounded-xl font-medium hover:bg-primary-dark transition-colors disabled:opacity-50"
           >
             {copied ? (
               <>
@@ -72,7 +75,7 @@ export function ShareModal({ onClose }) {
         </div>
 
         <p className="text-xs text-text-muted mt-4 text-center">
-          Let op: iedereen met deze link kan de lijst bewerken.
+          De ontvanger maakt een eigen account aan en ziet daarna dezelfde lijst.
         </p>
       </div>
     </div>
