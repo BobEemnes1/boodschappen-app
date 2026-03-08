@@ -29,7 +29,7 @@ export function Header({ isConnected, isSyncing, lastSync, onSync, onDisconnect,
             <button
               onClick={onDisconnect}
               className="p-2 rounded-full hover:bg-white/20 transition-colors"
-              title="Dropbox ontkoppelen"
+              title="Uitloggen"
             >
               <LogOut size={18} />
             </button>
