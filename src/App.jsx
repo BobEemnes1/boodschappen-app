@@ -10,11 +10,13 @@ import { supabase } from './lib/supabase';
 import { signOut, createProfile } from './lib/auth';
 import { clearHouseholdCache } from './lib/groceries';
 import { useSupabaseSync } from './hooks/useSupabaseSync';
+import { ResetPasswordScreen } from './components/ResetPasswordScreen';
 import './App.css';
 
 function App() {
   const [session, setSession] = useState(undefined); // undefined = nog aan het laden
   const [showShare, setShowShare] = useState(false);
+  const [isRecovery, setIsRecovery] = useState(false);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -25,6 +27,10 @@ function App() {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, session) => {
       setSession(session);
+      if (event === 'PASSWORD_RECOVERY') {
+        setIsRecovery(true);
+        return;
+      }
       // Na e-mailbevestiging: profiel alsnog aanmaken
       if (event === 'SIGNED_IN') {
         const pending = localStorage.getItem('pending_profile');
@@ -62,6 +68,10 @@ function App() {
 
   if (!session) {
     return <ConnectScreen />;
+  }
+
+  if (isRecovery) {
+    return <ResetPasswordScreen onDone={() => setIsRecovery(false)} />;
   }
 
   return (

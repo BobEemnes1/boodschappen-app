@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
-import { ShoppingCart, LogIn, UserPlus } from 'lucide-react';
-import { signIn, signUp, createProfile } from '../lib/auth';
+import { ShoppingCart, LogIn, UserPlus, Mail, ArrowLeft } from 'lucide-react';
+import { signIn, signUp, createProfile, resetPasswordForEmail } from '../lib/auth';
 
 export function ConnectScreen() {
-  const [tab, setTab] = useState('login'); // 'login' | 'register'
+  const [tab, setTab] = useState('login'); // 'login' | 'register' | 'forgot'
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [householdName, setHouseholdName] = useState('');
@@ -23,6 +23,21 @@ export function ConnectScreen() {
       setJoinCode(code);
     }
   }, []);
+
+  const handleForgot = async (e) => {
+    e.preventDefault();
+    setError(null);
+    setLoading(true);
+    try {
+      await resetPasswordForEmail(email);
+      setInfo('Controleer je e-mail voor de herstellink.');
+      setTab('login');
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -83,31 +98,33 @@ export function ConnectScreen() {
           <p className="text-text-muted mt-2">Log in of maak een account aan</p>
         </div>
 
-        {/* Tab switcher */}
-        <div className="flex bg-surface border border-border rounded-xl p-1 mb-6">
-          <button
-            type="button"
-            onClick={() => { setTab('login'); setError(null); }}
-            className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors ${
-              tab === 'login'
-                ? 'bg-primary text-white shadow-sm'
-                : 'text-text-muted hover:text-text'
-            }`}
-          >
-            Inloggen
-          </button>
-          <button
-            type="button"
-            onClick={() => { setTab('register'); setError(null); }}
-            className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors ${
-              tab === 'register'
-                ? 'bg-primary text-white shadow-sm'
-                : 'text-text-muted hover:text-text'
-            }`}
-          >
-            Registreren
-          </button>
-        </div>
+        {/* Tab switcher (verborgen bij forgot) */}
+        {tab !== 'forgot' && (
+          <div className="flex bg-surface border border-border rounded-xl p-1 mb-6">
+            <button
+              type="button"
+              onClick={() => { setTab('login'); setError(null); setInfo(null); }}
+              className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors ${
+                tab === 'login'
+                  ? 'bg-primary text-white shadow-sm'
+                  : 'text-text-muted hover:text-text'
+              }`}
+            >
+              Inloggen
+            </button>
+            <button
+              type="button"
+              onClick={() => { setTab('register'); setError(null); setInfo(null); }}
+              className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors ${
+                tab === 'register'
+                  ? 'bg-primary text-white shadow-sm'
+                  : 'text-text-muted hover:text-text'
+              }`}
+            >
+              Registreren
+            </button>
+          </div>
+        )}
 
         {info && (
           <div className="bg-primary/5 border border-primary/20 rounded-xl p-3 mb-4 text-sm text-text">
@@ -115,7 +132,37 @@ export function ConnectScreen() {
           </div>
         )}
 
-        {tab === 'login' ? (
+        {tab === 'forgot' ? (
+          <form onSubmit={handleForgot} className="space-y-4">
+            <button
+              type="button"
+              onClick={() => { setTab('login'); setError(null); }}
+              className="flex items-center gap-1.5 text-sm text-text-muted hover:text-text mb-2 transition-colors"
+            >
+              <ArrowLeft size={15} /> Terug naar inloggen
+            </button>
+            <div>
+              <label className="block text-sm font-medium text-text mb-1.5">E-mailadres</label>
+              <input
+                type="email"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="naam@voorbeeld.nl"
+                className="w-full px-4 py-3 bg-surface border border-border rounded-xl outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all text-text placeholder:text-text-muted"
+              />
+            </div>
+            {error && <p className="text-sm text-danger">{error}</p>}
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full flex items-center justify-center gap-2 bg-primary text-white py-3 px-6 rounded-xl font-medium hover:bg-primary-dark transition-colors shadow-sm disabled:opacity-50"
+            >
+              <Mail size={18} />
+              {loading ? 'Bezig...' : 'Stuur herstellink'}
+            </button>
+          </form>
+        ) : tab === 'login' ? (
           <form onSubmit={handleLogin} className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-text mb-1.5">E-mailadres</label>
@@ -147,6 +194,13 @@ export function ConnectScreen() {
             >
               <LogIn size={18} />
               {loading ? 'Bezig...' : 'Inloggen'}
+            </button>
+            <button
+              type="button"
+              onClick={() => { setTab('forgot'); setError(null); setInfo(null); }}
+              className="w-full text-sm text-text-muted hover:text-primary transition-colors text-center"
+            >
+              Wachtwoord vergeten?
             </button>
           </form>
         ) : (
